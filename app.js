@@ -2,7 +2,7 @@
   const app = document.querySelector('#app');
   const storageKey = 'zhilian-practice-records-v1';
   const draftKey = 'zhilian-practice-drafts-v1';
-  const questionBankVersion = '2026-09-06-ab-source-v1';
+  const questionBankVersion = '2026-09-06-ab-source-v2';
   let session = null;
 
   const shuffle = (items) => [...items].sort(() => Math.random() - 0.5);
