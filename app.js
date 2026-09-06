@@ -75,7 +75,7 @@
     const paper = PAPERS.find((item) => item.id === paperId);
     const questionOrder = ['single', 'multiple', 'judge'].flatMap((type) => shuffle(paper.questions.filter((q) => q.type === type)).map((q) => ({
       ...q,
-      options: q.options ? shuffle(q.options.map((option) => ({ ...option }))) : []
+      options: q.options ? (q.type === 'judge' ? q.options.map((option) => ({ ...option })) : shuffle(q.options.map((option) => ({ ...option })))) : []
     })));
     session = { paper, questions: questionOrder, index: 0, answers: {} };
     saveDraft();
