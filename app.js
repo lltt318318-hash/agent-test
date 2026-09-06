@@ -2,13 +2,19 @@
   const app = document.querySelector('#app');
   const storageKey = 'zhilian-practice-records-v1';
   const draftKey = 'zhilian-practice-drafts-v1';
-  const questionBankVersion = '2026-09-06-ab-source-v2';
+  const questionBankVersion = '2026-09-06-four-papers-v3';
   let session = null;
 
   const shuffle = (items) => [...items].sort(() => Math.random() - 0.5);
   const typeNames = { single: '单选题', multiple: '多选题', judge: '判断题' };
-  const typePoints = { single: 2, multiple: 2, judge: 1 };
+  const defaultTypePoints = { single: 2, multiple: 2, judge: 1 };
   const optionLetter = (index) => String.fromCharCode(65 + index);
+  const pointsFor = (paper, type) => paper?.points?.[type] ?? defaultTypePoints[type];
+  const totalPoints = (paper) => paper.questions.reduce((sum, question) => sum + pointsFor(paper, question.type), 0);
+  const paperStats = (paper) => ['single', 'multiple', 'judge'].map((type) => {
+    const count = typeCount(paper, type);
+    return `${typeNames[type]} ${count} 题 / ${count * pointsFor(paper, type)} 分`;
+  });
 
   function records() {
     try { return (JSON.parse(localStorage.getItem(storageKey)) || []).filter((record) => record.questionBankVersion === questionBankVersion); } catch { return []; }
@@ -47,16 +53,14 @@
     app.innerHTML = `
       <section class="page">
         <div class="paper-grid">
-          ${PAPERS.map((paper, index) => `
+          ${PAPERS.map((paper) => `
             <article class="paper-card">
-              <div class="card-label">赛前练习 ${index + 1}</div>
               <h2>${paper.title}</h2>
-              <p>理论分 100 分 · 共 60 题</p>
-              <div class="paper-stat"><span>单选 30 题 / 60 分</span><span>多选 10 题 / 20 分</span><span>判断 20 题 / 20 分</span></div>
+              <p>满分 ${totalPoints(paper)} 分 · 共 ${paper.questions.length} 题</p>
+              <div class="paper-stat">${paperStats(paper).map((stat) => `<span>${stat}</span>`).join('')}</div>
               <div class="button-row">${allDrafts[paper.id]?.questionBankVersion === questionBankVersion ? `<button class="button" data-resume="${paper.id}">继续练习</button><button class="button secondary" data-restart="${paper.id}">重新开始</button>` : `<button class="button" data-start="${paper.id}">开始练习</button>`}</div>
             </article>`).join('')}
         </div>
-        <div class="notice">两套试卷均已完整录入：每套 60 题，满分 100 分。</div>
         <section class="record-section">
           <h2>最近 10 次练习</h2>
           ${recent.length ? `<div class="record-table-wrap"><table class="record-table"><thead><tr><th>试卷</th><th>得分</th><th>正确题数</th><th>错题数</th><th>作答时间</th><th>操作</th></tr></thead><tbody>${recent.map((r, index) => `<tr><td>${r.paperTitle}</td><td class="score-good">${r.score} / ${r.total}</td><td>${r.correct} / ${r.graded}</td><td>${r.wrongCount ?? Math.max(0, (r.graded || 0) - (r.correct || 0))}</td><td>${formatDate(r.finishedAt)}</td><td>${r.items ? `<button class="button table-button" data-view-record="${index}">查看错题</button>` : '<span class="muted">暂无详情</span>'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="record-empty">还没有练习记录。完成一套试卷后，成绩会保存在这里。</div>'}
@@ -116,7 +120,7 @@
         <div class="progress-shell" aria-label="答题进度"><div class="progress-bar" style="width:${progress}%"></div></div>
         <div class="quiz-layout">
           <article class="question-panel">
-            <span class="question-type">${typeNames[question.type]} · ${typePoints[question.type]} 分</span>
+            <span class="question-type">${typeNames[question.type]} · ${pointsFor(session.paper, question.type)} 分</span>
             <div class="question-text">${question.text}</div>
             ${content}
             <div class="question-actions"><button class="button secondary" data-exit>保存并返回</button><span class="question-nav"><button class="button secondary" data-prev ${session.index === 0 ? 'disabled' : ''}>上一题</button>${session.index === session.questions.length - 1 ? '<button class="button warning" data-submit>交卷评分</button>' : '<button class="button" data-next>下一题</button>'}</span></div>
@@ -143,15 +147,15 @@
       const correct = q.answer.length === choice.length && q.answer.every((id) => choice.includes(id));
       return { question: q, choice, correct };
     });
-    const score = details.reduce((sum, item) => sum + (item.correct ? typePoints[item.question.type] : 0), 0);
-    const total = graded.reduce((sum, q) => sum + typePoints[q.type], 0);
+    const score = details.reduce((sum, item) => sum + (item.correct ? pointsFor(session.paper, item.question.type) : 0), 0);
+    const total = graded.reduce((sum, question) => sum + pointsFor(session.paper, question.type), 0);
     const correct = details.filter((item) => item.correct).length;
     const items = details.map(({ question, choice, correct: isCorrect }) => ({
       question: { ...question, options: question.options.map((option) => ({ ...option })) },
       choice,
       correct: isCorrect
     }));
-    const record = { paperTitle: session.paper.title, score, total, correct, graded: graded.length, wrongCount: details.length - correct, finishedAt: new Date().toISOString(), questionBankVersion, items };
+    const record = { paperId: session.paper.id, paperTitle: session.paper.title, points: session.paper.points, score, total, correct, graded: graded.length, wrongCount: details.length - correct, finishedAt: new Date().toISOString(), questionBankVersion, items };
     saveRecord(record);
     removeDraft(session.paper.id);
     renderResult(record, details);
@@ -162,8 +166,9 @@
     const wrongOnly = historyOnly ? details.filter((item) => !item.correct) : details;
     const typeSummary = ['single', 'multiple', 'judge'].map((type) => {
       const list = details.filter((item) => item.question.type === type);
-      const got = list.reduce((sum, item) => sum + (item.correct ? typePoints[type] : 0), 0);
-      return `<div><b>${got} / ${list.length * typePoints[type]}</b><span>${typeNames[type]} (${list.filter((item) => item.correct).length}/${list.length})</span></div>`;
+      const pointValue = pointsFor(record, type);
+      const got = list.reduce((sum, item) => sum + (item.correct ? pointValue : 0), 0);
+      return `<div><b>${got} / ${list.length * pointValue}</b><span>${typeNames[type]} (${list.filter((item) => item.correct).length}/${list.length})</span></div>`;
     }).join('');
     app.innerHTML = `<section class="page"><section class="result-hero"><div class="result-grid"><div class="score-circle"><div><strong>${record.score}</strong><span>有效得分 / ${record.total}</span></div></div><div class="result-meta"><p class="eyebrow">${record.paperTitle}</p><h1>${historyOnly ? '错题回顾' : '本次练习已完成'}</h1><p>${historyOnly ? `本次共 ${record.wrongCount || 0} 道错题，下面显示每道题的解析。` : `答对 ${record.correct} 题，共参与评分 ${record.graded} 题。成绩已保存在当前浏览器。`}</p><div class="button-row"><button class="button secondary" data-retry>再练一次</button><button class="button" data-home>返回练习列表</button></div></div></div></section>${historyOnly ? '' : `<div class="review-tabs"><button class="tab active" data-filter="all">全部题目</button><button class="tab" data-filter="wrong">仅看错题 (${record.wrongCount || 0})</button></div>`}<div class="breakdown">${typeSummary}</div><section class="answer-review"><h2>${historyOnly ? '错题与解析' : '答案回顾'}</h2><div data-review-list>${(historyOnly ? wrongOnly : details).map(({ question, choice, correct }) => reviewHtml(question, choice, correct)).join('')}</div></section></section>`;
     app.querySelector('[data-home]').addEventListener('click', renderHome);
