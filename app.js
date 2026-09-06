@@ -2,6 +2,7 @@
   const app = document.querySelector('#app');
   const storageKey = 'zhilian-practice-records-v1';
   const draftKey = 'zhilian-practice-drafts-v1';
+  const questionBankVersion = '2026-09-06-ab-source-v1';
   let session = null;
 
   const shuffle = (items) => [...items].sort(() => Math.random() - 0.5);
@@ -10,7 +11,7 @@
   const optionLetter = (index) => String.fromCharCode(65 + index);
 
   function records() {
-    try { return JSON.parse(localStorage.getItem(storageKey)) || []; } catch { return []; }
+    try { return (JSON.parse(localStorage.getItem(storageKey)) || []).filter((record) => record.questionBankVersion === questionBankVersion); } catch { return []; }
   }
   function saveRecord(record) {
     localStorage.setItem(storageKey, JSON.stringify([record, ...records()].slice(0, 10)));
@@ -23,6 +24,7 @@
     const allDrafts = drafts();
     allDrafts[session.paper.id] = {
       paperId: session.paper.id,
+      questionBankVersion,
       questions: session.questions,
       index: session.index,
       answers: session.answers,
@@ -51,10 +53,10 @@
               <h2>${paper.title}</h2>
               <p>理论分 100 分 · 共 60 题</p>
               <div class="paper-stat"><span>单选 30 题 / 60 分</span><span>多选 10 题 / 20 分</span><span>判断 20 题 / 20 分</span></div>
-              <div class="button-row">${allDrafts[paper.id] ? `<button class="button" data-resume="${paper.id}">继续练习</button><button class="button secondary" data-restart="${paper.id}">重新开始</button>` : `<button class="button" data-start="${paper.id}">开始练习</button>`}</div>
+              <div class="button-row">${allDrafts[paper.id]?.questionBankVersion === questionBankVersion ? `<button class="button" data-resume="${paper.id}">继续练习</button><button class="button secondary" data-restart="${paper.id}">重新开始</button>` : `<button class="button" data-start="${paper.id}">开始练习</button>`}</div>
             </article>`).join('')}
         </div>
-        <div class="notice">当前已录入 ${PAPERS.map((p) => `${p.title} ${completedCount(p)}/60 题`).join('，')}。待补充题目不会参与评分。</div>
+        <div class="notice">两套试卷均已完整录入：每套 60 题，满分 100 分。</div>
         <section class="record-section">
           <h2>最近 10 次练习</h2>
           ${recent.length ? `<div class="record-table-wrap"><table class="record-table"><thead><tr><th>试卷</th><th>得分</th><th>正确题数</th><th>错题数</th><th>作答时间</th><th>操作</th></tr></thead><tbody>${recent.map((r, index) => `<tr><td>${r.paperTitle}</td><td class="score-good">${r.score} / ${r.total}</td><td>${r.correct} / ${r.graded}</td><td>${r.wrongCount ?? Math.max(0, (r.graded || 0) - (r.correct || 0))}</td><td>${formatDate(r.finishedAt)}</td><td>${r.items ? `<button class="button table-button" data-view-record="${index}">查看错题</button>` : '<span class="muted">暂无详情</span>'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="record-empty">还没有练习记录。完成一套试卷后，成绩会保存在这里。</div>'}
@@ -83,7 +85,10 @@
   function resumePaper(paperId) {
     const paper = PAPERS.find((item) => item.id === paperId);
     const draft = drafts()[paperId];
-    if (!paper || !draft) return startPaper(paperId);
+    if (!paper || !draft || draft.questionBankVersion !== questionBankVersion) {
+      removeDraft(paperId);
+      return startPaper(paperId);
+    }
     session = {
       paper,
       questions: draft.questions,
@@ -146,7 +151,7 @@
       choice,
       correct: isCorrect
     }));
-    const record = { paperTitle: session.paper.title, score, total, correct, graded: graded.length, wrongCount: details.length - correct, finishedAt: new Date().toISOString(), items };
+    const record = { paperTitle: session.paper.title, score, total, correct, graded: graded.length, wrongCount: details.length - correct, finishedAt: new Date().toISOString(), questionBankVersion, items };
     saveRecord(record);
     removeDraft(session.paper.id);
     renderResult(record, details);
