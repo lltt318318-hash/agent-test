@@ -3747,25 +3747,57 @@ const paper4Questions = makePaper({
   ]
 });
 
+const makeCommandQuestion = (number, text, answers, explanation) => makeQuestion('command', number, text, [], answers, explanation);
+
+const commandPracticeQuestions = [
+  makeCommandQuestion(1, '查看当前执行命令的用户名。请输入命令。', ['whoami'], 'whoami 会输出当前有效用户的用户名，适合快速确认当前会话以哪个身份运行。'),
+  makeCommandQuestion(2, '查看当前主机名。请输入命令。', ['hostname'], 'hostname 用于输出当前系统配置的主机名。'),
+  makeCommandQuestion(3, '查看当前 CPU 的机器架构，例如 x86_64 或 aarch64。请输入命令。', ['uname -m'], 'uname -m 输出机器硬件名称，常用于确认当前系统的 CPU 架构。'),
+  makeCommandQuestion(4, '查看正在运行的 Linux 内核版本。请输入命令。', ['uname -r'], 'uname -r 输出内核发布版本，例如 6.x.y。'),
+  makeCommandQuestion(5, '查看当前系统日期和时间。请输入命令。', ['date'], 'date 默认输出当前日期、时间、时区等信息。'),
+  makeCommandQuestion(6, '以易读单位查看根分区 / 的磁盘使用情况。请输入命令。', ['df -h /'], 'df 用于查看文件系统磁盘空间，-h 以 KB、MB、GB 等易读单位显示；末尾的 / 将结果限定为根分区。'),
+  makeCommandQuestion(7, '以易读单位查看当前内存与 Swap 的使用情况。请输入命令。', ['free -h'], 'free 展示内存和 Swap 的统计信息，-h 让容量以易读单位显示。'),
+  makeCommandQuestion(8, '查看系统网络接口及其 IPv4 地址。请输入命令。', ['ip -4 addr show', 'ip -4 a'], 'ip addr show 用于查看接口地址；-4 仅显示 IPv4，a 是 addr show 的常用缩写。'),
+  makeCommandQuestion(9, '将“文档资料/项目说明.txt”设置为所有者可读写、组用户和其他用户只读。请输入命令。', ['chmod 644 文档资料/项目说明.txt'], 'chmod 644 表示所有者权限为 rw-，组用户和其他用户权限均为 r--。路径中没有空格，因此可直接写在命令后。'),
+  makeCommandQuestion(10, '以长格式列出当前目录中的全部文件，包含隐藏文件。请输入命令。', ['ls -la', 'ls -al'], 'ls 的 -l 以长格式显示详情，-a 显示以 . 开头的隐藏文件；两个短选项可以合并，顺序也可互换。'),
+  makeCommandQuestion(11, '显示当前所在的工作目录。请输入命令。', ['pwd'], 'pwd 是 print working directory 的缩写，用于输出当前工作目录的绝对路径。'),
+  makeCommandQuestion(12, '以长格式并以易读单位列出当前目录文件。请输入命令。', ['ls -lh', 'ls -hl'], 'ls -l 显示文件权限、所有者、时间等详情；-h 将文件大小以易读单位显示。'),
+  makeCommandQuestion(13, '递归创建目录“项目/日志”，即使父目录“项目”尚不存在也要成功。请输入命令。', ['mkdir -p 项目/日志'], 'mkdir 的 -p 会连同不存在的父目录一起创建；目录已存在时也不会报错。'),
+  makeCommandQuestion(14, '在当前目录创建空文件“notes.txt”；若文件已存在则仅更新时间戳。请输入命令。', ['touch notes.txt'], 'touch 用于创建空文件；对于已存在的普通文件，默认更新其访问和修改时间。'),
+  makeCommandQuestion(15, '将当前目录的 source.txt 复制为 backup.txt。请输入命令。', ['cp source.txt backup.txt'], 'cp 的基本形式为 cp 源文件 目标文件，此命令会保留 source.txt 并创建或覆盖 backup.txt。'),
+  makeCommandQuestion(16, '将当前目录的 old.txt 重命名为 new.txt。请输入命令。', ['mv old.txt new.txt'], 'mv 同时可用于移动文件和重命名文件；源和目标在同一目录时即为重命名。'),
+  makeCommandQuestion(17, '查看当前 Linux 发行版的标识、版本等信息。请输入命令。', ['cat /etc/os-release'], '/etc/os-release 是大多数现代 Linux 发行版提供的系统标识文件；cat 用于直接输出文件内容。'),
+  makeCommandQuestion(18, '在 app.log 中查找包含 error 的行，并显示行号。请输入命令。', ['grep -n error app.log'], 'grep 用于按文本模式检索；-n 会在每条匹配结果前显示行号。Linux 中默认区分大小写。'),
+  makeCommandQuestion(19, '从当前目录开始递归查找所有扩展名为 .log 的普通文件。请输入命令。', ['find . -type f -name "*.log"', "find . -type f -name '*.log'"], 'find . 从当前目录递归查找；-type f 限定普通文件，-name 的模式需加引号，避免被当前 Shell 预先展开。'),
+  makeCommandQuestion(20, '以易读单位统计 /var/log 目录总共占用的磁盘空间。请输入命令。', ['du -sh /var/log'], 'du 用于统计目录或文件的磁盘占用；-s 只显示汇总，-h 使用易读单位。'),
+  makeCommandQuestion(21, '查看系统中所有进程的详细信息。请输入命令。', ['ps aux'], 'ps aux 是常用的 BSD 风格写法，用于列出所有用户的进程及 CPU、内存等详情。'),
+  makeCommandQuestion(22, '查看 ssh 服务当前的运行状态和最近日志。请输入命令。', ['systemctl status ssh'], 'systemctl status 服务名 用于查看由 systemd 管理的服务状态、主进程和近期日志。不同发行版的服务名可能为 sshd。'),
+  makeCommandQuestion(23, '查看当前正在监听的 TCP/UDP 端口及对应进程信息。请输入命令。', ['ss -tulpn'], 'ss 是查看 Socket 状态的工具；-t、-u 分别包含 TCP 和 UDP，-l 仅监听端口，-p 显示进程，-n 不解析服务名。'),
+  makeCommandQuestion(24, '向 8.8.8.8 发送 4 个 ICMP 探测包以测试基础网络连通性。请输入命令。', ['ping -c 4 8.8.8.8'], 'ping 默认会持续发送；-c 4 指定仅发送 4 个探测包，便于在终端中自动结束测试。'),
+  makeCommandQuestion(25, '将“项目”目录打包并 gzip 压缩为 backup.tar.gz。请输入命令。', ['tar -czf backup.tar.gz 项目'], 'tar 的 -c 创建归档，-z 使用 gzip 压缩，-f 后紧跟归档文件名；最后给出要打包的目录。')
+];
+
 const PAPERS = [
   { id: 'practice-1', title: '赛前练习 1', questions: paper1Questions, points: { single: 2, multiple: 2, judge: 1 } },
   { id: 'practice-2', title: '赛前练习 2', questions: paper2Questions, points: { single: 2, multiple: 2, judge: 1 } },
   { id: 'practice-3', title: '1-智能体应用开发实践赛', questions: paper3Questions, points: { single: 3, multiple: 2, judge: 2 } },
-  { id: 'practice-4', title: '2-智能体应用开发实践赛', questions: paper4Questions, points: { single: 1, multiple: 1, judge: 1 } }
+  { id: 'practice-4', title: '2-智能体应用开发实践赛', questions: paper4Questions, points: { single: 1, multiple: 1, judge: 1 } },
+  { id: 'command-practice', title: '命令练习', questions: commandPracticeQuestions, points: { command: 4 } }
 ];
 
 const expectedPaperShapes = {
   'practice-1': { single: 30, multiple: 10, judge: 20 },
   'practice-2': { single: 30, multiple: 10, judge: 20 },
   'practice-3': { single: 20, multiple: 12, judge: 8 },
-  'practice-4': { single: 40, multiple: 30, judge: 30 }
+  'practice-4': { single: 40, multiple: 30, judge: 30 },
+  'command-practice': { command: 25 }
 };
 
 for (const paper of PAPERS) {
-  const typeCounts = Object.fromEntries(['single', 'multiple', 'judge'].map((type) => [type, paper.questions.filter((question) => question.type === type).length]));
+  const typeCounts = Object.fromEntries(['single', 'multiple', 'judge', 'command'].map((type) => [type, paper.questions.filter((question) => question.type === type).length]));
   const expected = expectedPaperShapes[paper.id];
   const uniqueQuestions = new Set(paper.questions.map((question) => question.text));
-  const validQuestions = paper.questions.every((question) => question.ready && question.options?.length >= 2 && question.answer?.length && question.explanation && question.answer.every((answer) => question.options.some((option) => option.id === answer)));
+  const validQuestions = paper.questions.every((question) => question.ready && question.answer?.length && question.explanation && (question.type === 'command' || (question.options?.length >= 2 && question.answer.every((answer) => question.options.some((option) => option.id === answer)))));
   if (!expected || !validQuestions || uniqueQuestions.size !== paper.questions.length || Object.entries(expected).some(([type, count]) => typeCounts[type] !== count)) {
     throw new Error(`${paper.title} 题库校验失败：题量、题型、题干、答案或解析不完整。`);
   }

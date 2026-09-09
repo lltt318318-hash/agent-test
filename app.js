@@ -6,12 +6,12 @@
   let session = null;
 
   const shuffle = (items) => [...items].sort(() => Math.random() - 0.5);
-  const typeNames = { single: '单选题', multiple: '多选题', judge: '判断题' };
-  const defaultTypePoints = { single: 2, multiple: 2, judge: 1 };
+  const typeNames = { single: '单选题', multiple: '多选题', judge: '判断题', command: '命令输入题' };
+  const defaultTypePoints = { single: 2, multiple: 2, judge: 1, command: 10 };
   const optionLetter = (index) => String.fromCharCode(65 + index);
   const pointsFor = (paper, type) => paper?.points?.[type] ?? defaultTypePoints[type];
   const totalPoints = (paper) => paper.questions.reduce((sum, question) => sum + pointsFor(paper, question.type), 0);
-  const paperStats = (paper) => ['single', 'multiple', 'judge'].map((type) => {
+  const paperStats = (paper) => ['single', 'multiple', 'judge', 'command'].filter((type) => typeCount(paper, type)).map((type) => {
     const count = typeCount(paper, type);
     return `${typeNames[type]} ${count} 题 / ${count * pointsFor(paper, type)} 分`;
   });
@@ -46,10 +46,16 @@
   function completedCount(paper) { return paper.questions.filter((q) => q.ready).length; }
   function typeCount(paper, type) { return paper.questions.filter((q) => q.type === type).length; }
   function formatDate(iso) { return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso)); }
+  function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character])); }
+  function normalizeCommand(value) { return String(value || '').trim().replace(/\s+/g, ' '); }
 
   function renderHome() {
     const recent = records();
     const allDrafts = drafts();
+    const hasCurrentDraft = (paper) => {
+      const draft = allDrafts[paper.id];
+      return draft?.questionBankVersion === questionBankVersion && draft.questions?.length === paper.questions.length;
+    };
     app.innerHTML = `
       <section class="page">
         <div class="paper-grid">
@@ -58,7 +64,7 @@
               <h2>${paper.title}</h2>
               <p>满分 ${totalPoints(paper)} 分 · 共 ${paper.questions.length} 题</p>
               <div class="paper-stat">${paperStats(paper).map((stat) => `<span>${stat}</span>`).join('')}</div>
-              <div class="button-row">${allDrafts[paper.id]?.questionBankVersion === questionBankVersion ? `<button class="button" data-resume="${paper.id}">继续练习</button><button class="button secondary" data-restart="${paper.id}">重新开始</button>` : `<button class="button" data-start="${paper.id}">开始练习</button>`}</div>
+              <div class="button-row">${hasCurrentDraft(paper) ? `<button class="button" data-resume="${paper.id}">继续练习</button><button class="button secondary" data-restart="${paper.id}">重新开始</button>` : `<button class="button" data-start="${paper.id}">开始练习</button>`}</div>
             </article>`).join('')}
         </div>
         <section class="record-section">
@@ -77,7 +83,7 @@
 
   function startPaper(paperId) {
     const paper = PAPERS.find((item) => item.id === paperId);
-    const questionOrder = ['single', 'multiple', 'judge'].flatMap((type) => shuffle(paper.questions.filter((q) => q.type === type)).map((q) => ({
+    const questionOrder = ['single', 'multiple', 'judge', 'command'].flatMap((type) => shuffle(paper.questions.filter((q) => q.type === type)).map((q) => ({
       ...q,
       options: q.options ? (q.type === 'judge' ? q.options.map((option) => ({ ...option })) : shuffle(q.options.map((option) => ({ ...option })))) : []
     })));
@@ -89,7 +95,7 @@
   function resumePaper(paperId) {
     const paper = PAPERS.find((item) => item.id === paperId);
     const draft = drafts()[paperId];
-    if (!paper || !draft || draft.questionBankVersion !== questionBankVersion) {
+    if (!paper || !draft || draft.questionBankVersion !== questionBankVersion || draft.questions.length !== paper.questions.length) {
       removeDraft(paperId);
       return startPaper(paperId);
     }
@@ -102,7 +108,7 @@
     renderQuiz();
   }
 
-  function answerFor(question) { return session.answers[question.id] || []; }
+  function answerFor(question) { return question.type === 'command' ? (session.answers[question.id] || '') : (session.answers[question.id] || []); }
   function setAnswer(question, values) { session.answers[question.id] = values; saveDraft(); renderQuiz(); }
   function renderQuiz() {
     const question = session.questions[session.index];
@@ -110,7 +116,7 @@
     const progress = Math.round((answered / session.questions.length) * 100);
     const selected = answerFor(question);
     const inputType = question.type === 'multiple' ? 'checkbox' : 'radio';
-    const content = question.ready ? `<div class="options">${question.options.map((option, index) => {
+    const content = question.type === 'command' ? `<label class="command-input-wrap"><span>命令</span><input class="command-input" name="command-answer" type="text" autocomplete="off" spellcheck="false" value="${escapeHtml(selected)}" placeholder="例如：uname -m"></label>` : question.ready ? `<div class="options">${question.options.map((option, index) => {
       const checked = selected.includes(option.id);
       return `<label class="option ${checked ? 'selected' : ''}"><input type="${inputType}" name="choice" value="${option.id}" ${checked ? 'checked' : ''}><span class="option-key">${optionLetter(index)}</span><span>${option.text}</span></label>`;
     }).join('')}</div>` : '<div class="empty-question">这道题的题干或选项未包含在当前资料中，等待补充后即可参与练习与评分。</div>';
@@ -134,6 +140,10 @@
         setAnswer(question, values);
       } else { setAnswer(question, [event.target.value]); }
     }));
+    app.querySelector('[name="command-answer"]')?.addEventListener('input', (event) => {
+      session.answers[question.id] = event.target.value;
+      saveDraft();
+    });
     app.querySelector('[data-exit]')?.addEventListener('click', () => { saveDraft(); session = null; renderHome(); });
     app.querySelector('[data-prev]')?.addEventListener('click', () => { session.index--; saveDraft(); renderQuiz(); });
     app.querySelector('[data-next]')?.addEventListener('click', () => { session.index++; saveDraft(); renderQuiz(); });
@@ -144,7 +154,9 @@
     const graded = session.questions.filter((q) => q.ready);
     const details = graded.map((q) => {
       const choice = answerFor(q);
-      const correct = q.answer.length === choice.length && q.answer.every((id) => choice.includes(id));
+      const correct = q.type === 'command'
+        ? q.answer.some((answer) => normalizeCommand(answer) === normalizeCommand(choice))
+        : q.answer.length === choice.length && q.answer.every((id) => choice.includes(id));
       return { question: q, choice, correct };
     });
     const score = details.reduce((sum, item) => sum + (item.correct ? pointsFor(session.paper, item.question.type) : 0), 0);
@@ -161,10 +173,16 @@
     renderResult(record, details);
   }
 
-  function responseText(question, ids) { return ids.length ? ids.map((id) => question.options.find((option) => option.id === id)?.text).join('；') : '未作答'; }
+  function responseText(question, response) {
+    if (question.type === 'command') {
+      const commands = Array.isArray(response) ? response : [response];
+      return commands.filter(Boolean).map((command) => `<code>${escapeHtml(command)}</code>`).join(' 或 ') || '未作答';
+    }
+    return response.length ? response.map((id) => question.options.find((option) => option.id === id)?.text).join('；') : '未作答';
+  }
   function renderResult(record, details, historyOnly = false) {
     const wrongOnly = historyOnly ? details.filter((item) => !item.correct) : details;
-    const typeSummary = ['single', 'multiple', 'judge'].map((type) => {
+    const typeSummary = ['single', 'multiple', 'judge', 'command'].filter((type) => details.some((item) => item.question.type === type)).map((type) => {
       const list = details.filter((item) => item.question.type === type);
       const pointValue = pointsFor(record, type);
       const got = list.reduce((sum, item) => sum + (item.correct ? pointValue : 0), 0);
